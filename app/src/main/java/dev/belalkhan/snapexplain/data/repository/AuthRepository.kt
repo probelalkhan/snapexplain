@@ -10,9 +10,11 @@ import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FirebaseFirestore
 import dev.belalkhan.snapexplain.core.base.Resource
 import dev.belalkhan.snapexplain.data.model.UserProfile
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -113,37 +115,39 @@ class AuthRepository @Inject constructor(
         }
     }
     
-    fun getUserProfile(): Flow<Resource<UserProfile>> = flow {
-        emit(Resource.Loading)
+    suspend fun getUserProfile(): UserProfile? = withContext(Dispatchers.IO) {
         try {
-            val userId = currentUser?.uid ?: throw Exception("No user logged in")
+            val userId = auth.currentUser?.uid ?: return@withContext null
             val doc = firestore.collection("users").document(userId).get().await()
-            val profile = doc.toObject(UserProfile::class.java)
-                ?: throw Exception("Profile not found")
-            emit(Resource.Success(profile))
+            
+            if (doc.exists()) {
+                doc.toObject(UserProfile::class.java)
+            } else {
+                // Profile doesn't exist, create it
+                val user = auth.currentUser ?: return@withContext null
+                val profile = UserProfile(
+                    uid = user.uid,
+                    email = user.email ?: "",
+                    displayName = user.displayName ?: user.email?.substringBefore("@") ?: "User",
+                    photoUrl = user.photoUrl?.toString() ?: ""
+                )
+                firestore.collection("users").document(user.uid).set(profile).await()
+                profile
+            }
         } catch (e: Exception) {
-            emit(Resource.Error("Failed to fetch profile: ${e.message}", e))
+            null
         }
     }
     
-    suspend fun updateUserStats(
-        totalExplanations: Int? = null,
-        favoriteCount: Int? = null,
-        dailyLearningTime: Long? = null,
-        studentScore: Int? = null
-    ): Resource<Unit> = try {
-        val userId = currentUser?.uid ?: throw Exception("No user logged in")
-        val updates = mutableMapOf<String, Any>()
-        
-        totalExplanations?.let { updates["totalExplanations"] = it }
-        favoriteCount?.let { updates["favoriteCount"] = it }
-        dailyLearningTime?.let { updates["dailyLearningTime"] = it }
-        studentScore?.let { updates["studentScore"] = it }
-        
-        firestore.collection("users").document(userId).update(updates).await()
-        Resource.Success(Unit)
-    } catch (e: Exception) {
-        Resource.Error("Failed to update stats: ${e.message}", e)
+    suspend fun updateUserStats(studentScore: Int) {
+        val userId = auth.currentUser?.uid ?: return
+        try {
+            firestore.collection("users").document(userId)
+                .update("studentScore", studentScore)
+                .await()
+        } catch (e: Exception) {
+            // Ignore errors
+        }
     }
     
     fun signOut() {
@@ -151,4 +155,3 @@ class AuthRepository @Inject constructor(
         oneTapClient.signOut()
     }
 }
-

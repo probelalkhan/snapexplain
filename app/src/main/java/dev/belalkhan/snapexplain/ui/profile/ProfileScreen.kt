@@ -25,9 +25,16 @@ import dev.belalkhan.snapexplain.data.model.UserProfile
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
+    onNavigateToLogin: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val profileState by viewModel.profileState.collectAsStateWithLifecycle()
+    
+    // Listen for sign out and navigate to login
+    LaunchedEffect(Unit) {
+        // This will be triggered when user signs out
+        // We need to observe auth state changes
+    }
     
     Scaffold(
         topBar = {
@@ -40,7 +47,10 @@ fun ProfileScreen(
                     )
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.signOut() }) {
+                    IconButton(onClick = { 
+                        viewModel.signOut()
+                        onNavigateToLogin()
+                    }) {
                         Icon(
                             imageVector = Icons.Default.Logout,
                             contentDescription = "Sign Out"

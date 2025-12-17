@@ -72,7 +72,11 @@ class AuthViewModel @Inject constructor(
     
     fun signOut() {
         authRepository.signOut()
-        _signInState.value = Resource.Loading
+        _signInState.value = Resource.Idle
+    }
+    
+    fun resetSignInState() {
+        _signInState.value = Resource.Idle
     }
 }
 

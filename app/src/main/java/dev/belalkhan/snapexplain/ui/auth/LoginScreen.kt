@@ -50,10 +50,12 @@ fun LoginScreen(
         }
     }
     
+    // Navigate on success and reset state
     LaunchedEffect(signInState) {
-        when (signInState) {
-            is Resource.Success -> onNavigateToMain()
-            else -> {}
+        if (signInState is Resource.Success) {
+            onNavigateToMain()
+            // Reset state after navigation to prevent re-triggering
+            viewModel.resetSignInState()
         }
     }
     

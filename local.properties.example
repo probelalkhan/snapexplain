@@ -1,0 +1,4 @@
+# Add this to your local.properties file (already gitignored)
+# DO NOT commit this file to Git!
+
+GEMINI_API_KEY=YOUR_API_KEY_HERE

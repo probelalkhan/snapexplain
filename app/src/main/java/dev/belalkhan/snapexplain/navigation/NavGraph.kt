@@ -44,7 +44,13 @@ fun NavGraph(
         }
         
         composable(Screen.Main.route) {
-            MainScreen()
+            MainScreen(
+                onNavigateToLogin = {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Main.route) { inclusive = true }
+                    }
+                }
+            )
         }
     }
 }

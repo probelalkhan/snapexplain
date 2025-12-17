@@ -24,6 +24,34 @@ class ExplanationRepository @Inject constructor(
     
     private val explanationsCollection = firestore.collection("explanations")
     
+    // Save explanation without image (text-based)
+    suspend fun saveTextExplanation(
+        codeSnippet: String,
+        explanation: String,
+        language: String = "unknown"
+    ): Resource<Explanation> = try {
+        val userId = auth.currentUser?.uid ?: throw Exception("No user logged in")
+        
+        android.util.Log.d("SaveExplanation", "Saving with userId: $userId")
+        
+        // Create explanation document
+        val explanationModel = Explanation(
+            userId = userId,
+            imageUrl = "",
+            codeSnippet = codeSnippet,
+            explanation = explanation,
+            language = language,
+            isFavorite = true // Mark as favorite when saving
+        )
+        
+        val docRef = explanationsCollection.add(explanationModel).await()
+        android.util.Log.d("SaveExplanation", "Saved successfully with ID: ${docRef.id}")
+        Resource.Success(explanationModel.copy(id = docRef.id))
+    } catch (e: Exception) {
+        android.util.Log.e("SaveExplanation", "Failed to save: ${e.message}")
+        Resource.Error("Failed to save explanation: ${e.message}", e)
+    }
+    
     suspend fun saveExplanation(
         imageUri: Uri,
         codeSnippet: String,
@@ -69,14 +97,17 @@ class ExplanationRepository @Inject constructor(
         
         val listener = explanationsCollection
             .whereEqualTo("userId", userId)
-            .orderBy("timestamp", Query.Direction.DESCENDING)
+            // Removed orderBy to avoid index requirement
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     trySend(Resource.Error("Failed to fetch explanations: ${error.message}", error))
                     return@addSnapshotListener
                 }
                 
-                val explanations = snapshot?.toObjects(Explanation::class.java) ?: emptyList()
+                // Sort on client side
+                val explanations = snapshot?.toObjects(Explanation::class.java)
+                    ?.sortedByDescending { it.timestamp }
+                    ?: emptyList()
                 trySend(Resource.Success(explanations))
             }
         
@@ -93,17 +124,30 @@ class ExplanationRepository @Inject constructor(
             return@callbackFlow
         }
         
+        android.util.Log.d("FavoritesQuery", "Querying favorites for userId: $userId")
+        
         val listener = explanationsCollection
             .whereEqualTo("userId", userId)
             .whereEqualTo("isFavorite", true)
-            .orderBy("timestamp", Query.Direction.DESCENDING)
+            // Removed orderBy to avoid index requirement
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
+                    android.util.Log.e("FavoritesQuery", "Error: ${error.message}")
                     trySend(Resource.Error("Failed to fetch favorites: ${error.message}", error))
                     return@addSnapshotListener
                 }
                 
-                val favorites = snapshot?.toObjects(Explanation::class.java) ?: emptyList()
+                android.util.Log.d("FavoritesQuery", "Snapshot size: ${snapshot?.size()}")
+                snapshot?.documents?.forEach { doc ->
+                    android.util.Log.d("FavoritesQuery", "Doc: ${doc.id}, isFavorite: ${doc.get("isFavorite")}, userId: ${doc.get("userId")}")
+                }
+                
+                // Sort on client side
+                val favorites = snapshot?.toObjects(Explanation::class.java)
+                    ?.sortedByDescending { it.timestamp }
+                    ?: emptyList()
+                    
+                android.util.Log.d("FavoritesQuery", "Favorites found: ${favorites.size}")
                 trySend(Resource.Success(favorites))
             }
         

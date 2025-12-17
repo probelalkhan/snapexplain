@@ -44,10 +44,12 @@ class HomeViewModel @Inject constructor(
                 // Analyze with Gemini
                 when (val result = geminiRepository.explainCode(bitmap)) {
                     is Resource.Success -> {
-                        val explanation = result.data
-                        val language = geminiRepository.extractCodeLanguage(explanation)
+                        _currentExplanation.value = Explanation(explanation = result.data)
+                        _analysisState.value = Resource.Success(Unit) // ← Fix: Update state to Success
+//                        val language = geminiRepository.extractCodeLanguage(explanation)
+
                         
-                        // Save to Firestore
+/*                        // Save to Firestore
                         when (val saveResult = explanationRepository.saveExplanation(
                             imageUri = imageUri,
                             codeSnippet = "", // Could extract from explanation if needed
@@ -65,7 +67,7 @@ class HomeViewModel @Inject constructor(
                                 _analysisState.value = Resource.Error(saveResult.message)
                             }
                             else -> {}
-                        }
+                        }*/
                     }
                     is Resource.Error -> {
                         _analysisState.value = Resource.Error(result.message)
@@ -78,12 +80,63 @@ class HomeViewModel @Inject constructor(
         }
     }
     
+    // New function for text-based code analysis
+    fun analyzeText(codeSnippet: String) {
+        viewModelScope.launch {
+            _analysisState.value = Resource.Loading
+            
+            try {
+                // Analyze with Gemini
+                when (val result = geminiRepository.explainCodeFromText(codeSnippet)) {
+                    is Resource.Success -> {
+                        val explanation = result.data
+                        val language = geminiRepository.extractCodeLanguage(explanation)
+                        
+                        // Temporarily set explanation for display
+                        _currentExplanation.value = Explanation(
+                            codeSnippet = codeSnippet,
+                            explanation = explanation,
+                            language = language
+                        )
+                        _analysisState.value = Resource.Success(Unit)
+                    }
+                    is Resource.Error -> {
+                        _analysisState.value = Resource.Error(result.message)
+                    }
+                    else -> {}
+                }
+            } catch (e: Exception) {
+                _analysisState.value = Resource.Error("Failed to process code: ${e.message}")
+            }
+        }
+    }
+    
     fun toggleFavorite() {
         viewModelScope.launch {
             _currentExplanation.value?.let { explanation ->
-                val newFavoriteState = !explanation.isFavorite
-                explanationRepository.toggleFavorite(explanation.id, newFavoriteState)
-                _currentExplanation.value = explanation.copy(isFavorite = newFavoriteState)
+                // If explanation doesn't have an ID, save it first
+                if (explanation.id.isEmpty()) {
+                    // Save to Firestore with favorite flag
+                    when (val saveResult = explanationRepository.saveTextExplanation(
+                        codeSnippet = explanation.codeSnippet,
+                        explanation = explanation.explanation,
+                        language = explanation.language
+                    )) {
+                        is Resource.Success -> {
+                            _currentExplanation.value = saveResult.data
+                        }
+                        is Resource.Error -> {
+                            // Handle error silently or show message
+                            android.util.Log.e("HomeViewModel", "Failed to save: ${saveResult.message}")
+                        }
+                        else -> {}
+                    }
+                } else {
+                    // Toggle existing favorite
+                    val newFavoriteState = !explanation.isFavorite
+                    explanationRepository.toggleFavorite(explanation.id, newFavoriteState)
+                    _currentExplanation.value = explanation.copy(isFavorite = newFavoriteState)
+                }
             }
         }
     }

@@ -21,6 +21,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
@@ -39,6 +40,47 @@ fun HomeScreen(
     
     val currentExplanation by viewModel.currentExplanation.collectAsStateWithLifecycle()
     val analysisState by viewModel.analysisState.collectAsStateWithLifecycle()
+    
+    // State for text input dialog
+    var showCodeDialog by remember { mutableStateOf(false) }
+    var codeInput by remember { mutableStateOf("") }
+    
+    // Show text input dialog
+    if (showCodeDialog) {
+        AlertDialog(
+            onDismissRequest = { showCodeDialog = false },
+            title = { Text("Enter Code Snippet") },
+            text = {
+                OutlinedTextField(
+                    value = codeInput,
+                    onValueChange = { codeInput = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(300.dp),
+                    placeholder = { Text("Paste your code here...") },
+                    maxLines = 15
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (codeInput.isNotBlank()) {
+                            viewModel.analyzeText(codeInput)
+                            showCodeDialog = false
+                            codeInput = ""
+                        }
+                    }
+                ) {
+                    Text("Analyze")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCodeDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
     
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -63,18 +105,10 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            val cameraPermission = rememberPermissionState(android.Manifest.permission.CAMERA)
-            
             ExtendedFloatingActionButton(
-                onClick = {
-                    if (cameraPermission.status.isGranted) {
-                        imagePicker.launch("image/*")
-                    } else {
-                        cameraPermission.launchPermissionRequest()
-                    }
-                },
-                icon = { Icon(Icons.Default.CameraAlt, contentDescription = "Capture Code") },
-                text = { Text("Capture Code") },
+                onClick = { showCodeDialog = true },
+                icon = { Icon(Icons.Default.Code, contentDescription = "Enter Code") },
+                text = { Text("Enter Code") },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             )
@@ -85,7 +119,8 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .padding(16.dp)
+                .padding(bottom = 80.dp), // Extra padding to clear FAB
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             when (analysisState) {
@@ -266,9 +301,10 @@ private fun ExplanationCard(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Text(
-                    text = explanation.explanation,
-                    style = MaterialTheme.typography.bodyMedium,
+                
+                // Use MarkdownText for formatted display
+                dev.belalkhan.snapexplain.ui.components.MarkdownText(
+                    markdown = explanation.explanation,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
