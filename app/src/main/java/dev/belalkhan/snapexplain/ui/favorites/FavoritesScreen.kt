@@ -3,7 +3,9 @@ package dev.belalkhan.snapexplain.ui.favorites
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -20,6 +22,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import dev.belalkhan.snapexplain.core.base.Resource
 import dev.belalkhan.snapexplain.data.model.Explanation
+import dev.belalkhan.snapexplain.ui.components.MarkdownText
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,6 +30,42 @@ fun FavoritesScreen(
     viewModel: FavoritesViewModel = hiltViewModel()
 ) {
     val favoritesState by viewModel.favorites.collectAsStateWithLifecycle()
+    var selectedExplanation by remember { mutableStateOf<Explanation?>(null) }
+    
+    // Show detail dialog
+    selectedExplanation?.let { explanation ->
+        AlertDialog(
+            onDismissRequest = { selectedExplanation = null },
+            title = { 
+                Text(
+                    if (explanation.language.isNotEmpty() && explanation.language != "unknown") 
+                        explanation.language.uppercase() 
+                    else 
+                        "Code Explanation"
+                ) 
+            },
+            text = {
+                androidx.compose.foundation.rememberScrollState().let { scrollState ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 500.dp)
+                            .verticalScroll(scrollState)
+                    ) {
+                        MarkdownText(
+                            markdown = explanation.explanation,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedExplanation = null }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
     
     Scaffold(
         topBar = {
@@ -94,6 +133,7 @@ fun FavoritesScreen(
                         items(favorites, key = { it.id }) { explanation ->
                             ExplanationItem(
                                 explanation = explanation,
+                                onClick = { selectedExplanation = explanation },
                                 onUnfavorite = { viewModel.toggleFavorite(explanation.id) }
                             )
                         }
@@ -119,14 +159,17 @@ fun FavoritesScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ExplanationItem(
     explanation: Explanation,
+    onClick: () -> Unit,
     onUnfavorite: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier.padding(12.dp),

@@ -126,9 +126,21 @@ class ExplanationRepository @Inject constructor(
         
         android.util.Log.d("FavoritesQuery", "Querying favorites for userId: $userId")
         
+        // DEBUG: First check all documents for this user
+        explanationsCollection
+            .whereEqualTo("userId", userId)
+            .get()
+            .addOnSuccessListener { snapshot ->
+                android.util.Log.d("FavoritesQuery", "DEBUG - Total documents for user: ${snapshot.size()}")
+                snapshot.documents.forEach { doc ->
+                    val isFav = doc.get("isFavorite")
+                    android.util.Log.d("FavoritesQuery", "DEBUG - Doc ${doc.id}: isFavorite=$isFav (type: ${isFav?.javaClass?.simpleName})")
+                }
+            }
+        
         val listener = explanationsCollection
             .whereEqualTo("userId", userId)
-            .whereEqualTo("isFavorite", true)
+            .whereEqualTo("favorite", true)  // Changed from "isFavorite" to "favorite"
             // Removed orderBy to avoid index requirement
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
@@ -156,7 +168,7 @@ class ExplanationRepository @Inject constructor(
     
     suspend fun toggleFavorite(explanationId: String, isFavorite: Boolean): Resource<Unit> = try {
         explanationsCollection.document(explanationId)
-            .update("isFavorite", isFavorite)
+            .update("favorite", isFavorite)  // Changed from "isFavorite" to "favorite"
             .await()
         Resource.Success(Unit)
     } catch (e: Exception) {
