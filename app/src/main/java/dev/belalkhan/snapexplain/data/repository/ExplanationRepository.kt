@@ -28,11 +28,12 @@ class ExplanationRepository @Inject constructor(
     suspend fun saveTextExplanation(
         codeSnippet: String,
         explanation: String,
-        language: String = "unknown"
+        language: String = "unknown",
+        isFavorite: Boolean = false  // Allow specifying favorite status
     ): Resource<Explanation> = try {
         val userId = auth.currentUser?.uid ?: throw Exception("No user logged in")
         
-        android.util.Log.d("SaveExplanation", "Saving with userId: $userId")
+        android.util.Log.d("SaveExplanation", "Saving with userId: $userId, isFavorite: $isFavorite")
         
         // Create explanation document
         val explanationModel = Explanation(
@@ -41,7 +42,7 @@ class ExplanationRepository @Inject constructor(
             codeSnippet = codeSnippet,
             explanation = explanation,
             language = language,
-            isFavorite = true // Mark as favorite when saving
+            isFavorite = isFavorite
         )
         
         val docRef = explanationsCollection.add(explanationModel).await()
